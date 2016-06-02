@@ -356,7 +356,7 @@ class UserServicesFactory
             }
 
             $container->setDefinition($serviceName, new Definition($class))
-            ->setFactory(array($service,'getManager'))
+            ->setFactory(array(new Reference($service),'getManager'))
             ->setPublic(false)
             ->setArguments(array($config['model_manager_name']));
 
