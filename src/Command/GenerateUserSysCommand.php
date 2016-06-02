@@ -13,9 +13,13 @@ namespace Rollerworks\Bundle\MultiUserBundle\Command;
 
 use Rollerworks\Bundle\MultiUserBundle\Generator\UserBundleGenerator;
 use Sensio\Bundle\GeneratorBundle\Command\GenerateBundleCommand;
+use Sensio\Bundle\GeneratorBundle\Generator\BundleGenerator;
+use Sensio\Bundle\GeneratorBundle\Model\Bundle;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Question\ConfirmationQuestion;
+use Symfony\Component\Console\Question\Question;
 use Symfony\Component\HttpKernel\Bundle\BundleInterface;
 
 class GenerateUserSysCommand extends GenerateBundleCommand
@@ -60,10 +64,12 @@ EOT
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $questionHelper = $this->getQuestionHelper();
-        $dialog = $this->getHelper('dialog');
+        //$dialog = $this->getHelper('dialog');
 
         if ($input->isInteractive()) {
-            if (!$dialog->askConfirmation($output, $questionHelper->getQuestion('Do you confirm generation', 'yes', '?'), true)) {
+            $question = new ConfirmationQuestion("Do you confirm generation?");
+
+            if (!$questionHelper->ask($input, $output, $question)) {
                 $output->writeln('<error>Command aborted</error>');
 
                 return 1;
@@ -81,13 +87,13 @@ EOT
             $bundle = strtr($namespace, array('\\' => ''));
         }
         $bundle = Validators::validateBundleName($bundle);
-        $dir = Validators::validateTargetDir($input->getOption('dir'), $bundle, $namespace);
+        $dir = $this->validateTargetDir($input->getOption('dir'), $bundle, $namespace);
 
         if (null === $input->getOption('format')) {
             $input->setOption('format', 'xml');
         }
         $format = Validators::validateFormat($input->getOption('format'));
-        $structure = $input->getOption('structure');
+        $structure = false;
 
         if (null === $input->getOption('db-driver')) {
             $input->setOption('db-driver', 'orm');
@@ -100,8 +106,13 @@ EOT
             $dir = getcwd().'/'.$dir;
         }
 
+        /** @var UserBundleGenerator $generator */
         $generator = $this->getGenerator();
-        $generator->generate($namespace, $bundle, $dir, $format, $structure, $dbDriver);
+
+
+        $_bundle = new Bundle($namespace, $bundle, $dir, $format, false);
+
+        $generator->generate($namespace, $bundle, $dir, $format, $dbDriver);
 
         $output->writeln('Generating the bundle code: <info>OK</info>');
 
@@ -109,10 +120,11 @@ EOT
         $runner = $questionHelper->getRunner($output, $errors);
 
         // check that the namespace is already autoloaded
-        $runner($this->checkAutoloader($output, $namespace, $bundle, $dir));
+        $runner($this->checkAutoloader($output, $_bundle));
 
         // register the bundle in the Kernel class
-        $runner($this->updateKernel($questionHelper, $input, $output, $this->getContainer()->get('kernel'), $namespace, $bundle));
+        $runner($this->updateKernel($output, $this->getContainer()->get("kernel"), $_bundle));
+//        $runner($this->updateKernel($questionHelper, $input, $output, $this->getContainer()->get('kernel'), $namespace, $bundle));
 
         $questionHelper->writeGeneratorSummary($output, $errors);
     }
@@ -120,7 +132,7 @@ EOT
     protected function interact(InputInterface $input, OutputInterface $output)
     {
         $questionHelper = $this->getQuestionHelper();
-        $dialog = $this->getHelper('dialog');
+        //$dialog = $this->getHelper('dialog');
 
         $questionHelper->writeSection($output, 'Welcome to the RollerworksMultiUser UserSys-bundle generator');
 
@@ -151,7 +163,10 @@ EOT
                 '',
             ));
 
-            $namespace = $dialog->askAndValidate($output, $questionHelper->getQuestion('Bundle namespace', $input->getOption('namespace')), array('Rollerworks\Bundle\MultiUserBundle\Command\Validators', 'validateBundleNamespace'), false, $input->getOption('namespace'));
+            $question = new Question("Bundle namespace:",$input->getOption('namespace'));
+            $question->setValidator(array('Rollerworks\Bundle\MultiUserBundle\Command\Validators', 'validateBundleNamespace'));
+
+            $namespace = $questionHelper->ask($input, $output, $question);
             $input->setOption('namespace', $namespace);
         }
 
@@ -174,14 +189,18 @@ EOT
                 'Based on the namespace, we suggest <comment>'.$bundle.'</comment>.',
                 '',
             ));
-            $bundle = $dialog->askAndValidate($output, $questionHelper->getQuestion('Bundle name', $bundle), array('Rollerworks\Bundle\MultiUserBundle\Command\Validators', 'validateBundleName'), false, $bundle);
+
+            $question = new Question("Bundle name:",$bundle);
+            $question->setValidator(array('Rollerworks\Bundle\MultiUserBundle\Command\Validators', 'validateBundleName'));
+
+            $bundle = $questionHelper->ask($input, $output, $question);
             $input->setOption('bundle-name', $bundle);
         }
 
         // target dir
         $dir = null;
         try {
-            $dir = $input->getOption('dir') ? Validators::validateTargetDir($input->getOption('dir'), $bundle, $namespace) : null;
+            $dir = $input->getOption('dir') ? $this->validateTargetDir($input->getOption('dir'), $bundle, $namespace) : null;
         } catch (\Exception $error) {
             $output->writeln($questionHelper->getHelperSet()->get('formatter')->formatBlock($error->getMessage(), 'error'));
         }
@@ -195,7 +214,15 @@ EOT
                 'the standard conventions.',
                 '',
             ));
-            $dir = $dialog->askAndValidate($output, $questionHelper->getQuestion('Target directory', $dir), function ($dir) use ($bundle, $namespace) { return Validators::validateTargetDir($dir, $bundle, $namespace); }, false, $dir);
+
+            $question = new Question("Target directory:",$dir);
+            $question->setValidator(function ($dir) use ($bundle, $namespace) {
+                return $this->validateTargetDir($dir, $bundle, $namespace);
+            });
+
+            $dir = $questionHelper->ask($input, $output, $question);
+
+//            $dir = $dialog->askAndValidate($output, $questionHelper->getQuestion('Target directory', $dir), function ($dir) use ($bundle, $namespace) { return $this->validateTargetDir($dir, $bundle, $namespace); }, false, $dir);
             $input->setOption('dir', $dir);
         }
 
@@ -213,7 +240,12 @@ EOT
                 'Determine the format to use for the generated configuration, note that annotation is not supported.',
                 '',
             ));
-            $format = $dialog->askAndValidate($output, $questionHelper->getQuestion('Configuration format (yml, xml or php)', $input->getOption('format')), array('Rollerworks\Bundle\MultiUserBundle\Command\Validators', 'validateFormat'), false, $input->getOption('format'));
+
+            $question = new Question("Configuration format (yml, xml or php):",$input->getOption('format'));
+            $question->setValidator(array('Rollerworks\Bundle\MultiUserBundle\Command\Validators', 'validateFormat'));
+            $format = $questionHelper->ask($input, $output, $question);
+
+//            $format = $dialog->askAndValidate($output, $questionHelper->getQuestion('Configuration format (yml, xml or php)', $input->getOption('format')), array('Rollerworks\Bundle\MultiUserBundle\Command\Validators', 'validateFormat'), false, $input->getOption('format'));
             $input->setOption('format', $format);
         }
 
@@ -231,7 +263,13 @@ EOT
                 'For the user-system to work you need to configure a db-driver.',
                 '',
             ));
-            $dbDriver = $dialog->askAndValidate($output, $questionHelper->getQuestion('Db-driver (orm, mongodb, couchdb or custom)', $input->getOption('db-driver')), array('Rollerworks\Bundle\MultiUserBundle\Command\Validators', 'validateDbDriver'), false, $input->getOption('db-driver'));
+
+            $question = new Question('Db-driver (orm, mongodb, couchdb or custom):', $input->getOption('db-driver'));
+            $question->setValidator(array('Rollerworks\Bundle\MultiUserBundle\Command\Validators', 'validateDbDriver'));
+
+            $dbDriver = $questionHelper->ask($input, $output, $question);
+
+//            $dbDriver = $dialog->askAndValidate($output, $questionHelper->getQuestion('Db-driver (orm, mongodb, couchdb or custom)', $input->getOption('db-driver')), array('Rollerworks\Bundle\MultiUserBundle\Command\Validators', 'validateDbDriver'), false, $input->getOption('db-driver'));
             $input->setOption('db-driver', $dbDriver);
         }
 
@@ -243,11 +281,14 @@ EOT
             '',
         ));
 
-        $structure = $input->getOption('structure');
-        if (!$structure && $dialog->askConfirmation($output, $questionHelper->getQuestion('Do you want to generate the whole directory structure', 'no', '?'), false)) {
-            $structure = true;
-        }
-        $input->setOption('structure', $structure);
+//        $structure = $input->getOption('structure');
+//
+//        $question = new ConfirmationQuestion('Do you want to generate the whole directory structure', false);
+//
+//        if (!$structure && $questionHelper->ask($input, $output, $question)) {
+//            $structure = true;
+//        }
+//        $input->setOption('structure', $structure);
 
         // summary
         $output->writeln(array(
@@ -287,5 +328,20 @@ EOT
         $skeletonDirs[] = $dir.'/../Resources';
 
         return array_merge($skeletonDirs, $baseSkeletonDirs);
+    }
+
+    /**
+     * Validation function taken from <3.0 release of Sensio Generator bundle
+     *
+     * @param string $dir The target directory
+     * @param string $bundle The bundle name
+     * @param string $namespace The namespace
+     *
+     * @return string
+     */
+    public static function validateTargetDir($dir, $bundle, $namespace)
+    {
+        // add trailing / if necessary
+        return '/' === substr($dir, -1, 1) ? $dir : $dir.'/';
     }
 }

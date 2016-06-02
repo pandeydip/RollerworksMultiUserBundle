@@ -35,12 +35,11 @@ class UserBundleGenerator extends Generator
      * @param string $bundle
      * @param string $dir
      * @param string $format
-     * @param string $structure
      * @param string $dbDriver
      *
      * @throws \RuntimeException
      */
-    public function generate($namespace, $bundle, $dir, $format, $structure, $dbDriver)
+    public function generate($namespace, $bundle, $dir, $format, $dbDriver)
     {
         $dir .= '/'.strtr($namespace, '\\', '/');
         if (file_exists($dir)) {
@@ -86,16 +85,16 @@ class UserBundleGenerator extends Generator
         $this->generateModels($namespace, $bundle, $dir, $dbDriver, $basename);
         $this->generateEventsClass($namespace, $bundle, $dir, $dbDriver, $basename);
 
-        if ($structure) {
-            $this->renderFile('bundle/messages.fr.xlf', $dir.'/Resources/translations/messages.fr.xlf', $parameters);
-
-            $this->filesystem->mkdir($dir.'/Resources/doc');
-            $this->filesystem->touch($dir.'/Resources/doc/index.rst');
-            $this->filesystem->mkdir($dir.'/Resources/translations');
-            $this->filesystem->mkdir($dir.'/Resources/public/css');
-            $this->filesystem->mkdir($dir.'/Resources/public/images');
-            $this->filesystem->mkdir($dir.'/Resources/public/js');
-        }
+//        if ($structure) {
+//            $this->renderFile('bundle/messages.fr.xlf', $dir.'/Resources/translations/messages.fr.xlf', $parameters);
+//
+//            $this->filesystem->mkdir($dir.'/Resources/doc');
+//            $this->filesystem->touch($dir.'/Resources/doc/index.rst');
+//            $this->filesystem->mkdir($dir.'/Resources/translations');
+//            $this->filesystem->mkdir($dir.'/Resources/public/css');
+//            $this->filesystem->mkdir($dir.'/Resources/public/images');
+//            $this->filesystem->mkdir($dir.'/Resources/public/js');
+//        }
     }
 
     /**

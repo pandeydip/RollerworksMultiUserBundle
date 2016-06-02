@@ -9,22 +9,18 @@
  * with this source code in the file LICENSE.
  */
 
-namespace {{
+namespace {{ namespace }}\Model;
 
-namespace }}\Model;
-
-{ % block use_statements % }
+{% block use_statements % }
 use FOS\UserBundle\Model\Group as BaseGroup;
 
-{ % endblock use_statements % }
+{% endblock use_statements %}
 
-{ % block class_definition % }
+{% block class_definition %}
 class Group extends BaseGroup
+{% endblock class_definition %}
 {
-    % endblock class_definition %
-}
-{
-{ % block class_body % }
+{% block class_body %}
     protected $id;
-{ % endblock class_body % }
+{% endblock class_body %}
 }
