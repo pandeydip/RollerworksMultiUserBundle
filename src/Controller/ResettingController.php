@@ -37,10 +37,6 @@ class ResettingController extends BaseResettingController
         return $this->render('FOSUserBundle:Resetting:check_email.html.twig', [
             'tokenLifetime' => floor($this->container->getParameter('fos_user.resetting.token_ttl') / 3600),
         ]);
-
-//        return $this->container->get('templating')->renderResponse('FOSUserBundle:Resetting:checkEmail.html.twig', [
-//            'email' => $email,
-//        ]);
     }
 
     public function sendEmailAction(Request $request)
@@ -97,34 +93,14 @@ class ResettingController extends BaseResettingController
             if (null !== $event->getResponse()) {
                 return $event->getResponse();
             }
+
+            return new RedirectResponse($this->container->get('router')->generate(
+                $userDiscriminator->getCurrentUserConfig()->getRoutePrefix() . '_resetting_check_email',
+                ['username' => $username]));
         }
 
-        return new RedirectResponse($this->container->get('router')->generate(
-            $userDiscriminator->getCurrentUserConfig()->getRoutePrefix() . '_resetting_check_email',
-            ['username' => $username]));
+        return $this->container->get('templating')->renderResponse('FOSUserBundle:Resetting:request.html.twig',
+            ['invalid_username' => $username]);
 
-
-//        if (null === $user) {
-//            return $this->container->get('templating')->renderResponse('FOSUserBundle:Resetting:request.html.twig',
-//                ['invalid_username' => $username]);
-//        }
-//
-//        if ($user->isPasswordRequestNonExpired($userDiscriminator->getCurrentUserConfig()->getConfig('resetting.token_ttl'))) {
-//            return $this->container->get('templating')->renderResponse('FOSUserBundle:Resetting:passwordAlreadyRequested.html.twig');
-//        }
-//
-//        if (null === $user->getConfirmationToken()) {
-//            $tokenGenerator = $this->container->get('fos_user.util.token_generator');
-//            $user->setConfirmationToken($tokenGenerator->generateToken());
-//        }
-//
-//        $this->container->get('fos_user.mailer')->sendResettingEmailMessage($user);
-//        $user->setPasswordRequestedAt(new \DateTime());
-//        $this->container->get('fos_user.user_manager')->updateUser($user);
-//
-//        return new RedirectResponse($this->container->get('router')->generate(
-//            $userDiscriminator->getCurrentUserConfig()->getRoutePrefix() . '_resetting_check_email',
-//            ['email' => $this->getObfuscatedEmail($user)]
-//        ));
     }
 }
